@@ -1,6 +1,6 @@
 # skills
 
-A collection of custom [Claude Code](https://claude.com/claude-code) skills.
+Agentic skills by mmontes11.
 
 ## Skills
 
