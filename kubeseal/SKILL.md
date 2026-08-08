@@ -1,17 +1,17 @@
 ---
 name: "kubeseal"
-description: "Seal Kubernetes Secrets into SealedSecrets using kubeseal for secure GitOps storage. Use when users need to create or update SealedSecrets, seal credentials for GitOps repos, or migrate secrets between services. NEVER leak plaintext credentials or seal keys in output, logs, or files."
+description: "Seal or reseal Kubernetes Secrets into SealedSecrets using kubeseal for secure GitOps storage. Use whenever the user says seal, reseal, or re-seal a secret or SealedSecret, and when they need to create, update, rotate, or fix SealedSecrets, seal credentials for GitOps repos, or migrate secrets between services. NEVER leak plaintext credentials or seal keys in output, logs, or files."
 license: MIT
-allowed-tools: Bash, Read, Write, Glob, Grep, kubernetes_resources_get, kubernetes_pods_log
+allowed-tools: Bash, Read, Write, Glob, Grep, mcp__kubernetes__resources_get, mcp__kubernetes__resources_list
 ---
 
-# Kubeseal: Seal Kubernetes Secrets
+# Kubeseal: Seal and Reseal Kubernetes Secrets
 
 ## Overview
 
 Seal Kubernetes Secrets into Bitnami SealedSecrets that are safe to store in Git. SealedSecrets are asymmetrically encrypted — anyone can encrypt (seal), but only the sealed-secrets controller in the cluster can decrypt (unseal).
 
-> Validated against `kubeseal` v0.37.0. Flag names are stable across recent releases, but run `kubeseal --help` if a command behaves unexpectedly.
+> Validated against `kubeseal` v0.38.4. Flag names are stable across recent releases, but run `kubeseal --help` if a command behaves unexpectedly.
 
 **Key insight:** the public certificate (`tls.crt`) is *not* secret — it is a public key, safe to share and even commit. Only the controller's private key (`tls.key`) is sensitive. Sealing is a purely local, offline operation once you have the cert; no cluster access is needed to seal.
 
@@ -28,7 +28,7 @@ Seal Kubernetes Secrets into Bitnami SealedSecrets that are safe to store in Git
 
 ### Temp File Handling
 
-**Prefer approaches that never write plaintext to a named file on disk** (see "Seal via stdin" and `--raw` below). When a temp file is unavoidable:
+**Prefer approaches that never write plaintext to a named file on disk** — the stdin heredoc under "1. New SealedSecret", or "Encrypt a Single Value (`--raw`)", both below. When a temp file is unavoidable:
 
 - Write temp secret files to `/tmp/` with descriptive names.
 - After sealing, **overwrite** the temp file contents with empty or garbage data.
@@ -43,8 +43,73 @@ Seal Kubernetes Secrets into Bitnami SealedSecrets that are safe to store in Git
 ## Prerequisites
 
 - `kubeseal` CLI installed and available
-- Public key certificate (`tls.crt`) from the sealed-secrets controller
-- Access to the Kubernetes cluster (for retrieving existing secret values via MCP)
+- Public key certificate (`tls.crt`) — obtained **only** as described in "Obtaining the Certificate" below
+- Access to the Kubernetes cluster via the Kubernetes MCP (for the cert fallback, and for retrieving existing secret values)
+
+## Obtaining the Certificate
+
+**This section is authoritative. The certificate MUST come from one of exactly two sources, tried in this order.** Do not improvise a third.
+
+### Source 1 (preferred) — the project's `certs/` folder
+
+Look for the cert in the repository first. Sealing is offline; if the repo ships the cert, no cluster access is needed at all.
+
+```bash
+# From the project root; typical names: tls.crt, sealed-secrets-cert.pem, sealed-secrets.crt
+ls certs/
+
+# If certs/ is not at the root, locate it:
+find . -type d -name certs -not -path '*/.git/*'
+```
+
+Set `CERT` to the file you found, then **validate it before use** (see "Always Validate the Certificate"):
+
+```bash
+CERT=certs/tls.crt
+```
+
+If `certs/` holds more than one candidate, validate each and prefer the one that verifies against the repo's existing SealedSecrets.
+
+### Source 2 (fallback) — the cluster, via the Kubernetes MCP
+
+Only if `certs/` has no valid cert. Use the **Kubernetes MCP tools** to read the controller's active key Secret:
+
+**Step 1.** Call `mcp__kubernetes__resources_list` with:
+
+- `apiVersion: v1`, `kind: Secret`
+- `labelSelector: sealedsecrets.bitnami.com/sealed-secrets-key=active`
+- `namespace`: wherever the controller runs (commonly `kube-system` or `sealed-secrets`); omit to search all namespaces
+
+If several `active` key Secrets come back, pick the one with the most recent `metadata.creationTimestamp` — that is the key the controller currently seals with.
+
+**Step 2.** Take `data["tls.crt"]` from that Secret and base64-decode it into a local file:
+
+```bash
+printf '%s' '<tls.crt base64 from the MCP response>' | base64 -d > /tmp/sealed-secrets-cert.pem
+CERT=/tmp/sealed-secrets-cert.pem
+```
+
+**Step 3.** Validate it before use (next section).
+
+If the MCP returns no such Secret, the controller is not installed on the cluster the MCP points at. **Stop and tell the user** — do not fall back to another method.
+
+> **DANGER — that Secret also contains `tls.key`, the controller's private key.** Read and use **only** the `tls.crt` field. Never decode, print, echo, write, or commit `tls.key`. Do not paste the raw MCP response anywhere.
+
+### Always Validate the Certificate
+
+**A file is not a certificate just because it exists.** Redirects capture error text into cert-shaped files, and sealing against that garbage produces a SealedSecret that fails later with `illegal base64 data at input byte N` or `no key could decrypt secret` — long after the plaintext is gone.
+
+**Run this before every seal. If it fails, STOP** — fall back to the next source rather than sealing:
+
+```bash
+openssl x509 -in "$CERT" -noout -subject -dates || echo "NOT A VALID CERT — do not seal with this file"
+```
+
+If a `certs/` file fails validation, report it to the user and move to Source 2. Never "fix" it by guessing.
+
+### Confirm It Is the Right Key (recommended)
+
+A valid cert may still be the *wrong* or a *rotated* key. When the repo already contains working SealedSecrets, confirm the cert matches the one they were sealed with by comparing public keys against a known-good pair, or by checking that a newly sealed test value round-trips. If the repo also contains the private key, note that as a security problem (see Pitfalls) rather than relying on it.
 
 ## Workflow
 
@@ -55,7 +120,7 @@ Seal Kubernetes Secrets into Bitnami SealedSecrets that are safe to store in Git
 The sealed output is safe to write directly into the repo. Only the *input* is sensitive, and piping it via a heredoc keeps it off the filesystem entirely.
 
 ```bash
-kubeseal --cert /path/to/tls.crt -o yaml -f /dev/stdin > path/to/repo/sealedsecret.yaml <<'EOF'
+kubeseal --cert "$CERT" -o yaml -f /dev/stdin > path/to/repo/sealedsecret.yaml <<'EOF'
 apiVersion: v1
 kind: Secret
 metadata:
@@ -85,13 +150,15 @@ stringData:
 EOF
 
 # Seal and output YAML (sealed output is safe to write straight to the repo)
-kubeseal --cert /path/to/tls.crt --format yaml -f /tmp/my-secret.yaml > path/to/repo/sealedsecret.yaml
+kubeseal --cert "$CERT" --format yaml -f /tmp/my-secret.yaml > path/to/repo/sealedsecret.yaml
 
 # SANITIZE the plaintext temp file immediately (the sealed output is not sensitive)
 echo "" > /tmp/my-secret.yaml
 ```
 
-### 2. Update Existing SealedSecret (Preserving Fields)
+### 2. Reseal / Update an Existing SealedSecret (Preserving Fields)
+
+> This is the path for a **reseal** request — the user asks to reseal an existing SealedSecret, usually because it fails to unseal (`illegal base64 data at input byte N`, `no key could decrypt secret`) or because a credential changed. Resealing rewrites `spec.encryptedData` in place; keep `metadata`, `spec.template` (labels, annotations, `type`), name, and namespace byte-identical to the original unless the user asks otherwise, and match the surrounding files' conventions.
 
 When updating some keys in a SealedSecret (e.g., changing S3 credentials but keeping a database password), you have two options:
 
@@ -100,10 +167,7 @@ When updating some keys in a SealedSecret (e.g., changing S3 credentials but kee
 
 #### Step 1: Retrieve existing secret from the cluster
 
-```bash
-# Use kubernetes_resources_get MCP tool to read the decrypted Secret
-# The SealedSecret controller auto-decrypts into a regular Secret in the cluster
-```
+Prefer the `mcp__kubernetes__resources_get` MCP tool to read the decrypted Secret — the SealedSecret controller auto-decrypts into a regular Secret in the cluster (`apiVersion: v1`, `kind: Secret`, plus the name and namespace).
 
 Or via kubectl:
 ```bash
@@ -125,11 +189,11 @@ EXISTING_PASS=$(printf '%s' '<base64value>' | base64 -d)
 
 # Re-seal the preserved value and the updated value straight into the repo file.
 # printf '%s' avoids adding a trailing newline to the secret.
-printf '%s' "$EXISTING_PASS" | kubeseal --cert /path/to/tls.crt \
+printf '%s' "$EXISTING_PASS" | kubeseal --cert "$CERT" \
   --raw --namespace "$NS" --name "$NAME" --from-file=/dev/stdin
 # -> paste the output under spec.encryptedData.password in path/to/repo/sealedsecret.yaml
 
-printf '%s' 'new-value' | kubeseal --cert /path/to/tls.crt \
+printf '%s' 'new-value' | kubeseal --cert "$CERT" \
   --raw --namespace "$NS" --name "$NAME" --from-file=/dev/stdin
 # -> paste the output under spec.encryptedData.access-key-id
 ```
@@ -151,37 +215,15 @@ data:
   password: $(printf '%s' "$EXISTING_PASS" | base64 -w0)
 EOF
 
-kubeseal --cert /path/to/tls.crt --format yaml -f /tmp/updated-secret.yaml > path/to/repo/sealedsecret.yaml
+kubeseal --cert "$CERT" --format yaml -f /tmp/updated-secret.yaml > path/to/repo/sealedsecret.yaml
 
 # SANITIZE the plaintext temp file
 echo "" > /tmp/updated-secret.yaml
 ```
 
-### 3. Fetch Public Key From Cluster
+### 3. Obtain the Public Key
 
-If you don't have the public key locally, fetch it from the running sealed-secrets controller. Use `--controller-namespace` / `--controller-name` to locate the controller — **not** `--namespace`, which sets the CLI request scope and has no effect on cert fetching. The defaults are `sealed-secrets-controller` in `kube-system`.
-
-```bash
-# Defaults (controller "sealed-secrets-controller" in "kube-system"):
-kubeseal --fetch-cert > /tmp/sealed-secrets-cert.pem
-
-# Non-default location:
-kubeseal --fetch-cert \
-  --controller-namespace sealed-secrets \
-  --controller-name sealed-secrets > /tmp/sealed-secrets-cert.pem
-```
-
-`--fetch-cert` returns only the **public** cert — it is safe to keep and reuse (do **not** sanitize it).
-
-If `kubeseal` can't reach the controller service directly, fetch the cert from the active key Secret. The key Secret has a generated name, so select it by label rather than a fixed name:
-
-```bash
-kubectl get secret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
-  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d > /tmp/sealed-secrets-cert.pem
-```
-
-> **Caution:** the key Secret also contains `tls.key` (the private key). Extract **only** `tls.crt` as shown above. Never write, print, or commit `tls.key`.
+See **"Obtaining the Certificate"** above — `certs/` first, then the Kubernetes MCP. No other source is permitted, and the cert must be validated with `openssl x509` before sealing.
 
 ## kubeseal Command Reference
 
@@ -189,7 +231,7 @@ kubectl get secret -n kube-system \
 
 | Flag | Purpose |
 |------|---------|
-| `--cert <file\|URL>` | Public key file (or URL) for encryption (overrides controller auto-detect) |
+| `--cert <file>` | Public key file for encryption. **Always pass this explicitly** — omitting it makes kubeseal auto-detect the controller. Use a local file only, never a URL |
 | `-o, --format yaml\|json` | Output format (default: json) |
 | `-f, --secret-file <file>` | Input Secret YAML file (use `/dev/stdin` to pipe) |
 | `-n, --namespace <ns>` | Namespace scope for **the secret being sealed** (not the controller's location) |
@@ -200,9 +242,9 @@ kubectl get secret -n kube-system \
 | `--name <name>` | Name of the sealed secret (required with `--raw` under strict scope) |
 | `--re-encrypt` | Re-encrypt an existing SealedSecret with the controller's latest key (needs cluster) |
 | `--validate` | Verify the sealed secret decrypts — **contacts the controller; requires cluster access** |
-| `--fetch-cert` | Print the controller's public cert to stdout |
-| `--controller-namespace <ns>` | Namespace where the controller runs (default: `kube-system`) |
-| `--controller-name <name>` | Controller name (default: `sealed-secrets-controller`) |
+| `--fetch-cert` | **FORBIDDEN — do not use.** Get the cert from `certs/` or the Kubernetes MCP instead (see "Obtaining the Certificate"). On failure it emits an error message to stdout that a redirect turns into a bogus cert file |
+| `--controller-namespace <ns>` | Namespace where the controller runs (default: `kube-system`). Applies to `--validate`/`--re-encrypt` only — never for fetching the cert |
+| `--controller-name <name>` | Controller name (default: `sealed-secrets-controller`). Same restriction as above |
 | `--recovery-unseal` | Disaster-recovery decrypt using `--recovery-private-key` (**handles the private key — use with extreme caution**) |
 
 ### Scope Modes
@@ -229,7 +271,7 @@ stringData:
 EOF
 
 # Merge into existing sealed secret
-kubeseal --cert /path/to/tls.crt --merge-into path/to/repo/sealedsecret.yaml -f /tmp/delta-secret.yaml
+kubeseal --cert "$CERT" --merge-into path/to/repo/sealedsecret.yaml -f /tmp/delta-secret.yaml
 
 # SANITIZE
 echo "" > /tmp/delta-secret.yaml
@@ -243,15 +285,15 @@ echo "" > /tmp/delta-secret.yaml
 
 ```bash
 # strict scope (default): --name AND --namespace are REQUIRED and must match the target SealedSecret
-printf '%s' 'p@ss"word:with$pecial' | kubeseal --cert /path/to/tls.crt \
+printf '%s' 'p@ss"word:with$pecial' | kubeseal --cert "$CERT" \
   --raw --namespace my-namespace --name my-secret --from-file=/dev/stdin
 
 # namespace-wide: only --namespace required
-printf '%s' 'value' | kubeseal --cert /path/to/tls.crt \
+printf '%s' 'value' | kubeseal --cert "$CERT" \
   --raw --scope namespace-wide --namespace my-namespace --from-file=/dev/stdin
 
 # cluster-wide: neither required
-printf '%s' 'value' | kubeseal --cert /path/to/tls.crt \
+printf '%s' 'value' | kubeseal --cert "$CERT" \
   --raw --scope cluster-wide --from-file=/dev/stdin
 ```
 
@@ -352,6 +394,16 @@ stringData:
 
 6. **Git history** — if a secret was accidentally committed, it remains in git history. Use `git filter-repo` to remove it, then rotate the credential.
 
+7. **A cert-shaped file may not be a cert (seen in the wild).** `kubeseal --fetch-cert > certs/sealed-secrets-cert.pem` against a cluster with no controller writes this into the file:
+
+   ```
+   error: cannot get sealed secret service: services "sealed-secrets-controller" not found.
+   ```
+
+   Sealing against it appears to succeed, and the corruption only surfaces at unseal time as `illegal base64 data at input byte N` or `no key could decrypt secret` — by which point the plaintext may be gone. This is exactly why `--fetch-cert` is forbidden and why `openssl x509` validation is mandatory before every seal. A cert file whose size is a few hundred bytes with no `-----BEGIN CERTIFICATE-----` line is this failure.
+
+8. **A private key in `certs/` is a security incident, not a convenience.** If `certs/` contains `tls.key` alongside the cert, anyone with repo access can decrypt every SealedSecret in it. Report it: the controller key should be rotated and the file purged from git history. Only ever read `tls.crt` for sealing.
+
 ## Verification
 
 **Before deploying**, validate the sealed secret against the live controller (this contacts the cluster — it does not work offline):
@@ -368,10 +420,12 @@ kubeseal --validate -f path/to/repo/sealedsecret.yaml
 kubectl get secret <name> -n <namespace> -o jsonpath='{.data}' | python3 -c "import sys,json; [print(k) for k in json.load(sys.stdin).keys()]"
 ```
 
-Or use the kubernetes_resources_get MCP tool to inspect the decrypted Secret.
+Or use the `mcp__kubernetes__resources_get` MCP tool to inspect the decrypted Secret.
 
 ## Post-Sealing Checklist
 
+- [ ] Cert came from `certs/` or the Kubernetes MCP — never `--fetch-cert`, `kubectl`, or a URL
+- [ ] Cert passed `openssl x509` validation before sealing
 - [ ] Temp files overwritten (not just deleted)
 - [ ] No plaintext credentials in shell history (use `set +o history` before sensitive operations)
 - [ ] No credentials in git diff output
