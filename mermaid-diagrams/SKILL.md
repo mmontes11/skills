@@ -32,30 +32,31 @@ Create and verify mermaid diagrams. Mermaid is a text-to-diagram language: fence
 
 ## Render & verify workflow
 
-The core loop for every diagram:
+mmdc takes a **file**, not a fenced block — so extract each ` ```mermaid ` block to a temp `.mmd` file, render it, and check the output. This loop handles any number of diagrams (validated against a real multi-diagram `architecture.md`):
 
-1. **Write the block** in the Markdown file (fenced `mermaid`).
-2. **Extract the block** to a temp `.mmd` file (mmdc takes a file, not a fenced block):
+1. **Write the block(s)** in the Markdown file (fenced `mermaid`).
+2. **Split every mermaid block** in the file into `/tmp/d-<n>.mmd`:
    ```bash
-   # pull the block between the mermaid fences into /tmp/d.mmd
-   sed -n '/^```mermaid$/,/^```$/p' README.md | sed '1d;$d' > /tmp/d.mmd
+   awk '
+     /^```mermaid[[:space:]]*$/ { n++; inblk=1; next }
+     /^```[[:space:]]*$/        { inblk=0 }
+     inblk                       { print > ("/tmp/d-" n ".mmd") }
+   ' FILE
    ```
-   For multiple diagrams, render each in turn (or keep them in separate files while drafting).
-3. **Render** with the turnkey wrapper (or `mmdc` directly):
+3. **Render each** and check it came out non-empty:
    ```bash
-   mermaid-render /tmp/d.mmd                          # -> /tmp/d.svg
-   mermaid-render -i /tmp/d.mmd -o /tmp/d.png         # PNG
-   # direct, no wrapper:
-   mmdc -i /tmp/d.mmd -o /tmp/d.svg -p ~/.config/mermaid/puppeteer.json
+   for f in /tmp/d-*.mmd; do
+     if mermaid-render "$f" && [ -s "${f%.mmd}.svg" ]; then
+       echo "OK:   $f"
+     else
+       echo "FAIL: $f"
+     fi
+   done
    ```
-4. **Verify**: exit code 0 **and** a non-empty output file. A parse error prints to stderr and produces no/empty output — treat any non-zero exit or empty file as "the block is broken":
-   ```bash
-   mermaid-render /tmp/d.mmd && [ -s /tmp/d.svg ] && echo OK
-   ```
-5. Iterate until clean, then push. Overwrite temp files rather than `rm` (may be blocked):
-   ```bash
-   echo "" > /tmp/d.mmd
-   ```
+   A single diagram? Just `mermaid-render /tmp/d-1.mmd`. To render directly without the wrapper:
+   `mmdc -i /tmp/d-1.mmd -o /tmp/d-1.svg -p ~/.config/mermaid/puppeteer.json`. PNG: `mermaid-render -i /tmp/d-1.mmd -o /tmp/d-1.png`.
+4. **Verify**: a block is good only when its render exits 0 **and** writes a non-empty file. A parse error prints to stderr and produces no/empty output — treat any `FAIL` as "the block is broken", open the SVG, and fix it.
+5. Iterate until every block is `OK`, then push. Overwrite temp files rather than `rm` (may be blocked): `echo "" > /tmp/d-*.mmd`.
 
 ## Choosing a diagram type
 
