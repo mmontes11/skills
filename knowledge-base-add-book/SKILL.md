@@ -77,7 +77,7 @@ For each main chapter, in the book's reading order:
 
 Add a row to the **Tracked books** table in the root `README.md` (columns: Book, Author, Source), linking to
 `books/<book-slug>/README.md`. Books are project-agnostic and live at the repository root — never under
-`projects/`, never in the Tracked projects table, and outside the weekly maintenance run.
+`projects/`, never in the Tracked projects table, and outside the monthly maintenance run.
 
 ## Step 4 — Deliver
 

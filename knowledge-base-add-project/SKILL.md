@@ -33,7 +33,7 @@ relative to the repository root.
 ## Two modes
 
 - **Add** — create a brand-new project folder (and optionally a new category) from upstream.
-- **Update** — the idempotent maintenance pass over one existing project; this is what the weekly
+- **Update** — the idempotent maintenance pass over one existing project; this is what the monthly
   [update schedule](https://github.com/mmontes11/knowledge-base/blob/main/README.md#update-schedule) drives.
 
 ## Mode A — Add a project

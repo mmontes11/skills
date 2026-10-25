@@ -81,7 +81,7 @@ fields the rubric needs.
 
 ## Cadence & full re-score
 
-Run on demand or on a schedule (the Contributions autopilot runs it weekly). Ignore the 90-day freshness
+Run on demand or on a schedule (the Contributions autopilot runs it monthly — the 15th of each month at 09:00, Europe/Madrid). Ignore the 90-day freshness
 cache and re-score a category from scratch when its `Updated` date is older than **90 days** or when the
 **Scoring** rubric itself changes.
 
