@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: mmontes11
-  version: "1.1"
+  version: "1.2"
 compatibility: Requires the multica CLI, a local toolchain for the target repo's language, and GitHub access (GitHub MCP tools and the authenticated gh CLI) to both the upstream repo and the user's fork.
 allowed-tools: Read, Grep, Bash(multica:*), Bash(gh:*), Bash(git:*)
 ---
@@ -78,19 +78,21 @@ fork relationship.
    to the fork's origin. **Do not open a PR against the fork** — a fork PR shows up in the
    upstream's PR timeline and pollutes it with updates the maintainers will never review. The
    pushed branch alone is the deliverable.
-8. **Write the PR body from the upstream PR template.** Same sections and checkboxes as the
-   template. Include: what it does, the motivation (linked to the upstream issue if one exists),
-   the exact testing commands with their results, and the AI-assistance note.
+8. **Write the PR body from the upstream PR template.** Use the **target repo's own template
+    exactly**: its sections, headings, and checkboxes, in the template's order. Do not import
+    sections from another repo's template — the body's structure is whatever the target repo
+    defines. Fill in what it does, the motivation (linked to the upstream issue if one exists),
+    and the exact testing commands with their results (in the template's testing section if it
+    has one). Then append the AI disclosure note at the end, after the template's sections.
 
-   The note is a **must-have, not optional**: the PR body must acknowledge that the change was
-   drafted with AI assistance **and** that a human reviewed it before the PR was submitted. Both
-   halves are required — the AI disclosure and the human review. Wording that has landed well
-   (kubernetes-sigs/external-dns PR #6846):
+    The note is a **must-have, not optional**: the PR body must acknowledge that the change was
+    drafted with AI assistance **and** that a human reviewed it before the PR was submitted. Both
+    halves are required — the AI disclosure and the human review. Example wording (from
+    kubernetes-sigs/external-dns PR #6846 — adapt to the repo's tone if needed):
 
-   > Note: this change was drafted with AI assistance and reviewed locally before submission.
+    > Note: this change was drafted with AI assistance and reviewed locally before submission.
 
-   Adapt the wording to the repo's tone if needed, but never drop the note, and never claim a
-   human review that did not happen.
+    Never drop the note, and never claim a human review that did not happen.
 9. **Post the deliverable comment** on the Multica issue
     (`multica issue comment add <issue-id> --content-file <path>`). It must carry:
     - The branch name and the fork URL with a link to the branch diff.
@@ -98,9 +100,12 @@ fork relationship.
       their results.
     - The PR **title and body in a fenced markdown block**, pasteable as-is for the upstream PR.
       The user will copy the block's content straight into the upstream PR form, so the **PR
-      title is the first line inside the fence**, followed by a blank line and the body sections
-      in the template's order (e.g. `## What does it do ?`, `## Motivation`, `## More` with its
-      checkboxes), then the testing commands with their results, and the AI-assistance note.
+      title is the first line inside the fence**, followed by a blank line and the body in the
+      format defined by the **target repo's own PR template** — its sections, headings, and
+      checkboxes verbatim, in the template's order — with the exact testing commands and their
+      results (in the template's testing section if it has one), and the AI disclosure note
+      appended at the end after the template's sections. The fence is the one constant across
+      repos; the body's structure is never assumed, only read from the target repo's template.
       **Never render the PR body as live markdown in the comment** — rendered headings, bold
       titles, and checkbox widgets cannot be copied back into the template, which defeats the
       purpose of the deliverable. It must appear verbatim inside a ` ```markdown ` fence. For
@@ -113,17 +118,9 @@ fork relationship.
       ```markdown
       refactor(scope): <title>
 
-      ## What does it do ?
+      <the target repo's PR template sections, verbatim and in order>
 
-      <body sections from the upstream PR template, verbatim structure>
-
-      ## More
-
-      - [x] Yes, this PR title follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-      - [x] Yes, I added unit tests
-      - [ ] Yes, I updated end user documentation accordingly
-
-      Testing: <exact commands and their observed results>
+      <testing commands and their results, if the template has no section for them>
 
       Note: this change was drafted with AI assistance and reviewed locally before submission.
       ```
