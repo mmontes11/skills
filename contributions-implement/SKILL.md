@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: mmontes11
-  version: "1.0"
+  version: "1.1"
 compatibility: Requires the multica CLI, a local toolchain for the target repo's language, and GitHub access (GitHub MCP tools and the authenticated gh CLI) to both the upstream repo and the user's fork.
 allowed-tools: Read, Grep, Bash(multica:*), Bash(gh:*), Bash(git:*)
 ---
@@ -92,13 +92,44 @@ fork relationship.
    Adapt the wording to the repo's tone if needed, but never drop the note, and never claim a
    human review that did not happen.
 9. **Post the deliverable comment** on the Multica issue
-   (`multica issue comment add <issue-id> --content-file <path>`). It must carry:
-   - The branch name and the fork URL with a link to the branch diff.
-   - The verification summary: the exact commands run (tests, lint, CI-equivalent checks) and
-     their results.
-   - The PR **title and body in a fenced markdown block**, pasteable as-is for the upstream PR.
-   - A closing line: **no PR was opened anywhere — the branch sits in the fork, and opening the
-     upstream PR is the user's call.**
+    (`multica issue comment add <issue-id> --content-file <path>`). It must carry:
+    - The branch name and the fork URL with a link to the branch diff.
+    - The verification summary: the exact commands run (tests, lint, CI-equivalent checks) and
+      their results.
+    - The PR **title and body in a fenced markdown block**, pasteable as-is for the upstream PR.
+      The user will copy the block's content straight into the upstream PR form, so the **PR
+      title is the first line inside the fence**, followed by a blank line and the body sections
+      in the template's order (e.g. `## What does it do ?`, `## Motivation`, `## More` with its
+      checkboxes), then the testing commands with their results, and the AI-assistance note.
+      **Never render the PR body as live markdown in the comment** — rendered headings, bold
+      titles, and checkbox widgets cannot be copied back into the template, which defeats the
+      purpose of the deliverable. It must appear verbatim inside a ` ```markdown ` fence. For
+      several PRs in one comment, label each section (e.g. `### 1. <title>`) with its branch
+      and commit, and put one fenced block per PR. Shape of the deliverable:
+
+      ````markdown
+      ### 1. `refactor(scope): <title>`
+
+      ```markdown
+      refactor(scope): <title>
+
+      ## What does it do ?
+
+      <body sections from the upstream PR template, verbatim structure>
+
+      ## More
+
+      - [x] Yes, this PR title follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+      - [x] Yes, I added unit tests
+      - [ ] Yes, I updated end user documentation accordingly
+
+      Testing: <exact commands and their observed results>
+
+      Note: this change was drafted with AI assistance and reviewed locally before submission.
+      ```
+      ````
+    - A closing line: **no PR was opened anywhere — the branch sits in the fork, and opening the
+      upstream PR is the user's call.**
 10. **Close out.** Set the issue status per the platform workflow once the deliverable is posted.
 
 ## Conventions this run followed (beyond the steps above)
