@@ -80,7 +80,17 @@ fork relationship.
    pushed branch alone is the deliverable.
 8. **Write the PR body from the upstream PR template.** Same sections and checkboxes as the
    template. Include: what it does, the motivation (linked to the upstream issue if one exists),
-   the exact testing commands with their results, and an honest AI-assistance disclosure.
+   the exact testing commands with their results, and the AI-assistance note.
+
+   The note is a **must-have, not optional**: the PR body must acknowledge that the change was
+   drafted with AI assistance **and** that a human reviewed it before the PR was submitted. Both
+   halves are required — the AI disclosure and the human review. Wording that has landed well
+   (kubernetes-sigs/external-dns PR #6846):
+
+   > Note: this change was drafted with AI assistance and reviewed locally before submission.
+
+   Adapt the wording to the repo's tone if needed, but never drop the note, and never claim a
+   human review that did not happen.
 9. **Post the deliverable comment** on the Multica issue
    (`multica issue comment add <issue-id> --content-file <path>`). It must carry:
    - The branch name and the fork URL with a link to the branch diff.

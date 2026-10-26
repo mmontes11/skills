@@ -6,7 +6,7 @@ Agentic skills by mmontes11.
 
 | Skill | Description |
 |-------|-------------|
-| [contributions-implement](contributions-implement/SKILL.md) | Implement a chosen contribution in the user's fork: user-fork hard gate, upstream conventions, branch-only (no fork PR), equivalence-first tests, local upstream-CI validation, DCO sign-off, and the template-based PR body posted pasteable on the Multica issue. |
+| [contributions-implement](contributions-implement/SKILL.md) | Implement a chosen contribution in the user's fork: user-fork hard gate, upstream conventions, branch-only (no fork PR), equivalence-first tests, local upstream-CI validation, DCO sign-off, and the template-based PR body — always carrying the AI-assistance and human-review note — posted pasteable on the Multica issue. |
 | [contributions-rank](contributions-rank/SKILL.md) | Rank the contributions surfaced by a batch of scouted projects against the [mmontes11/contributions](https://github.com/mmontes11/contributions) `#contribution-scoring` rubric and post the table on the parent Multica issue. |
 | [contributions-scout](contributions-scout/SKILL.md) | Scout one open-source project for contributions likely to be merged — candidates, high-level plan, feasibility — posted as a comment on its Multica sub-issue. |
 | [contributions-update](contributions-update/SKILL.md) | Keep the project tables of [mmontes11/contributions](https://github.com/mmontes11/contributions) current: scrape the star lists, score only the delta against the repo's `#scoring` rubric, and commit a small diff to `main`. |
