@@ -18,7 +18,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: mmontes11
-  version: "1.3"
+  version: "1.4"
 compatibility: Requires the multica CLI, a local toolchain for the target repo's language, and GitHub access (GitHub MCP tools and the authenticated gh CLI) to both the upstream repo and the user's fork.
 allowed-tools: Read, Grep, Bash(multica:*), Bash(gh:*), Bash(git:*)
 ---
@@ -78,8 +78,13 @@ fork relationship.
 5. **Run the upstream CI/CD checks locally, before pushing.** The fork will not run upstream
    CI/CD, so nothing else will. Reproduce what the upstream workflows run: the build, the package's
    test suite (with race/sanitizer flags where the repo uses them), and the repo's lint target with
-   the **pinned tool versions** (a lint pass on a newer linter is not the same evidence). Read the
-   actual terminal output and confirm it is green; do not assume success from a quiet exit.
+   the **pinned tool versions** (a lint pass on a newer linter is not the same evidence). Reproduce
+   what the upstream workflows run, no more: flags they do not use (an added `-race`, a sanitizer)
+   are slower evidence, not better, and a repo-wide build is unnecessary when the package's test
+   run already compiles the touched package and its dependencies. Run each checkpoint **once**, as
+   a single chained shell command (baseline pass on the unmodified code; final pass after the
+   change) — re-run only the specific check that failed. Read the actual terminal output and
+   confirm it is green; do not assume success from a quiet exit.
 6. **Commit with the correct sign-off.** Respect the upstream sign-off convention: for DCO repos,
    sign with the user's identity so the commit carries `Signed-off-by: Name <email>`
    (`git commit -s`). Never change the git identity for the task, and never commit secrets.
@@ -178,6 +183,23 @@ contribution:
 - **Narrow reads, bounded context.** Read the narrowest slice needed — one path, one line range,
   one diff — and summarize learnings before fetching more. Never dump whole files or unpaginated
   logs into the conversation.
+- **Fewer, batched calls.** In long runs the conversation is re-sent on every tool call, so the
+  call count — not the commands — dominates cost. Combine independent steps into one chained shell
+  command, read a range once instead of re-reading it, and never re-fetch what is already in
+  context.
+- **Parse-only tools for ranking and re-measuring metrics.** When the task is to rank code by a
+  metric (e.g. cyclomatic complexity) or to re-measure it after a refactor, use a parse-only
+  analyzer that needs no build (Go: `gocyclo -over N ./pkg/`); reserve the repo's pinned linter
+  for the final package-level CI evidence, not for ranking or re-measurement.
+- **Whole-function edits, not cascades.** Read the full line range of a function once, then
+  replace the whole function in a single edit. Cascading many small edits is where whitespace
+  mismatches and indentation damage come from.
+- **Pipes hide failures.** Never pipe a verification command into `grep` or `head` when its
+  success is the evidence: a failing tool still prints lines a filter can drop, and the exit
+  status is lost — an empty "scan" may be a failed command, not a clean result.
+- **Lightweight clones.** When managing the clone yourself, use a blobless or shallow clone
+  (`git clone --filter=blob:none`, or `--depth` when full history is not needed) — history stays
+  available on demand and the initial transfer is far smaller.
 - **One branch per logical change.** If the work spans several independent changes, do one per
   branch and report them separately, so the user can open, sequence, or discard them independently.
 - **Verification is evidence, not ritual.** Every command's real output must be inspected
