@@ -7,14 +7,18 @@ description: >
   sign-off format), work on a branch of the fork without opening any fork PR, write
   equivalence-first tests, run the upstream CI/CD checks locally before pushing (the fork will
   not run them), sign commits per the upstream DCO/CLA convention, and post the PR body — built
-  from the upstream PR template — in a markdown pasteable format on the Multica issue. Use
-  whenever a Multica issue asks to "work on the contribution", "implement <candidate> in
-  <owner/repo>", "prepare the branch for <repo>", or to "turn the scouted contribution into a
-  PR-ready diff" — even if the issue only names the target repo and the change to make.
+  from the upstream PR template — in a markdown pasteable format on the Multica issue. In review
+  iterations (the PR is already open and a maintainer left review comments), address only the
+  explicit requests on the same fork branch and post a pasteable PR comment per PR in the same
+  fenced-markdown format; PR discussions — replies, resolutions, ambiguous asks — are left for
+  the humans. Use whenever a Multica issue asks to "work on the contribution", "implement
+  <candidate> in <owner/repo>", "prepare the branch for <repo>", "turn the scouted contribution
+  into a PR-ready diff", or to "address the review comments on <PR>" — even if the issue only
+  names the target repo and the change to make.
 license: Apache-2.0
 metadata:
   author: mmontes11
-  version: "1.2"
+  version: "1.3"
 compatibility: Requires the multica CLI, a local toolchain for the target repo's language, and GitHub access (GitHub MCP tools and the authenticated gh CLI) to both the upstream repo and the user's fork.
 allowed-tools: Read, Grep, Bash(multica:*), Bash(gh:*), Bash(git:*)
 ---
@@ -22,17 +26,22 @@ allowed-tools: Read, Grep, Bash(multica:*), Bash(gh:*), Bash(git:*)
 # Implement a contribution in a fork
 
 One contribution per run. The run's **Multica issue** names the target repository (owner/repo) and
-the change to make. The deliverables are a **pushed branch in the user's fork** and a **Multica
-comment carrying a pasteable PR body** that follows the upstream PR template. No PR is opened
-anywhere — the user opens the upstream PR after validating the branch.
+the change to make. There are two shapes. In the **initial run**, the deliverables are a
+**pushed branch in the user's fork** and a **Multica comment carrying a pasteable PR body** that
+follows the upstream PR template; no PR is opened anywhere — the user opens the upstream PR after
+validating the branch. In a **review iteration** (the PR is already open and maintainers left
+review comments), the deliverable is a push to the **same fork branch** plus a **pasteable PR
+comment** per PR on the Multica issue — and the PR discussion itself stays with the humans.
 
 ## Scope
 
 - **In:** verify the fork; read the upstream conventions; tests first; implement; run the upstream
   CI checks locally; commit with the correct sign-off; push the fork branch; write the PR body;
-  post the deliverable comment.
+  in review iterations, address the explicit review comments on the same branch and write the
+  pasteable PR comment; post the deliverable comment.
 - **Out (hard):** creating the fork, opening a PR against the fork, opening a PR against upstream,
-  merging anything, force-pushing.
+  merging anything, force-pushing, replying to or resolving PR review threads, editing the PR
+  body, or deciding what an unresolved discussion means.
 
 ## Hard gate: the fork must already exist
 
@@ -129,6 +138,38 @@ fork relationship.
       upstream PR is the user's call.**
 10. **Close out.** Set the issue status per the platform workflow once the deliverable is posted.
 
+## Review iterations (the PR is already open)
+
+When the issue or a comment asks to address maintainer review comments on a PR the user has
+already opened, the branch and the PR exist — the work is a fix iteration, not a new
+contribution:
+
+1. **Read the review threads verbatim** (GitHub MCP `pull_request_read` with
+   `get_review_comments`, paginated). Work from the exact comment text and suggested code, never
+   a paraphrase or a summary of an earlier turn.
+2. **Split the threads into explicit requests and discussions.** An explicit request is an
+   instruction or a concrete suggestion block — implement it exactly. A discussion — a question,
+   a "Maybe …?" proposal, a trade-off remark, a "fine as is" note — is **not** yours to answer:
+   flag it in the deliverable comment for the human, and implement nothing for it unless the
+   human has already decided in a comment.
+3. **Never assume what a discussion resolves to.** If a thread is ambiguous, leave the code
+   alone and surface the question. The human reads the thread and decides; the resolution — not
+   your guess — is what a later iteration implements.
+4. **Verify and push to the same fork branch.** Same evidence bar as the initial run (build,
+   tests, lint with the pinned tooling, inspected output). Pushing updates the open PR in place;
+   never open a new branch or a new PR for review fixes.
+5. **Post a pasteable PR comment for every PR that received new changes.** Every iteration that
+   pushes new commits gets one — even if it touches only a subset of the PRs, in which case only
+   those get a block. Same format rules as the pasteable PR body: a fenced ` ```markdown ` block
+   per PR, pasteable verbatim into the PR conversation, never rendered live. It thanks the
+   reviewer, names the new commit, and answers each explicit review comment in order with what
+   was done. Flagged discussion items are listed in the Multica comment, not in the pasteable
+   block, unless the human wants to put a question to the reviewer.
+6. **Leave the PR to the humans.** You do not reply to, resolve, or edit review threads, and you
+   do not edit the PR body or description — if a comment demands a PR-body change and you cannot
+   make it, hand the exact needed edit to the human in the deliverable comment. The human pastes
+   the PR comment, follows the discussion, resolves the threads, and merges.
+
 ## Conventions this run followed (beyond the steps above)
 
 - **Toolchain pinned to the repo.** Verify the language toolchain the repo requires (e.g. the
@@ -145,4 +186,6 @@ fork relationship.
   verification.
 - **Stop at the deliverable.** The moment the branch is pushed and the comment is posted, the work
   is done. Wait for the human to validate and open the upstream PR; do not chase CI, reviews, or
-  merges on your own.
+  merges on your own. In review iterations the same holds for the discussion: the threads, the PR
+  body, the resolutions, and the merge are the human's — your push and the pasteable PR comment
+  are the entire deliverable of the iteration.
