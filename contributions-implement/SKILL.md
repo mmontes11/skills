@@ -88,6 +88,18 @@ fork relationship.
 6. **Commit with the correct sign-off.** Respect the upstream sign-off convention: for DCO repos,
    sign with the user's identity so the commit carries `Signed-off-by: Name <email>`
    (`git commit -s`). Never change the git identity for the task, and never commit secrets.
+   Commits must never carry a `Co-Authored-By` trailer — not one crediting the agent, the
+   platform, or any tool: those identities have no CLA, and upstream CI that checks the CLA
+   fails on them. The agent platform can append such a trailer automatically when the commit
+   is made, so verify the message after committing (`git log -1 --format=%B`), and if a
+   `Co-authored-by:` line is present, rewrite it out of the last commit **before pushing**:
+
+   ```sh
+   git update-ref HEAD "$(git commit-tree "HEAD^{tree}" -p HEAD^ -m "$(git log -1 --format=%B | grep -v '^Co-authored-by:')")"
+   ```
+
+   Do not `git commit --amend` for this: amend re-runs the commit hooks and the trailer comes
+   back; `commit-tree` bypasses them.
 7. **Re-read the diff, then push.** Review the generated diff for scope creep, then push the branch
    to the fork's origin. **Do not open a PR against the fork** — a fork PR shows up in the
    upstream's PR timeline and pollutes it with updates the maintainers will never review. The
@@ -162,7 +174,8 @@ contribution:
    your guess — is what a later iteration implements.
 4. **Verify and push to the same fork branch.** Same evidence bar as the initial run (build,
    tests, lint with the pinned tooling, inspected output). Pushing updates the open PR in place;
-   never open a new branch or a new PR for review fixes.
+   never open a new branch or a new PR for review fixes. Commits follow the step-6 sign-off
+   rule — user identity, `Signed-off-by`, and no `Co-Authored-By` trailers.
 5. **Post a pasteable PR comment for every PR that received new changes.** Every iteration that
    pushes new commits gets one — even if it touches only a subset of the PRs, in which case only
    those get a block. Same format rules as the pasteable PR body: a fenced ` ```markdown ` block
